@@ -6,6 +6,15 @@ mkdir -p "$SUPPORT"
 export BLINK_TRACKER_HOME="$SUPPORT"
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
+# Build notification helper (AppleScript applet) on first launch if needed.
+if [ -x "$RES/ensure-blink-notify.sh" ]; then
+  "$RES/ensure-blink-notify.sh" "$RES" || true
+fi
+NOTIFY_HELPER="$RES/BlinkNotify.app/Contents/MacOS/applet"
+if [ -x "$NOTIFY_HELPER" ]; then
+  export BLINK_NOTIFY_HELPER="$NOTIFY_HELPER"
+fi
+
 # Prefer existing project venv, else create under Application Support
 VENV="$SUPPORT/.venv"
 if [ ! -x "$VENV/bin/python" ]; then

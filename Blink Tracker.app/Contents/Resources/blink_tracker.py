@@ -48,12 +48,23 @@ def frontmost_app() -> str:
         return "Unknown"
 
 
+def _notify_helper() -> Path | None:
+    env = _os.environ.get("BLINK_NOTIFY_HELPER")
+    if env:
+        p = Path(env)
+        if p.is_file():
+            return p
+    p = _HERE / "BlinkNotify.app" / "Contents" / "MacOS" / "applet"
+    if p.is_file():
+        return p
+    return None
+
+
 def notify(title: str, body: str) -> None:
-    safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
-    safe_body = body.replace("\\", "\\\\").replace('"', '\\"')
-    subprocess.Popen(
-        ["osascript", "-e", f'display notification "{safe_body}" with title "{safe_title}"']
-    )
+    helper = _notify_helper()
+    if helper is None:
+        return
+    subprocess.Popen([str(helper), title, body])
 
 
 def load_reminder_seconds() -> int:

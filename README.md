@@ -57,7 +57,17 @@ chmod +x start.command
 
 3. Allow **Camera** for Terminal (and Python if listed) when macOS asks  
    (`System Settings → Privacy & Security → Camera`).
-4. Optionally allow **Accessibility** for Terminal so “main app” logging is accurate, and **Notifications** for reminders.
+4. Optionally allow **Accessibility** for Terminal so “main app” logging is accurate.
+
+## Notifications
+
+Reminders use the **default macOS notification banner** with the Blink Tracker eye icon.
+
+The app ships a small AppleScript helper (`BlinkNotify.app`) inside the app bundle. On first launch it is compiled automatically from `BlinkNotify.applescript` with the eye icon (`applet.icns`). Reminders call that helper only — no custom toast UI and no raw `osascript display notification` (which would show the Script Editor icon).
+
+In **System Settings → Notifications → Blink Tracker**, allow **Banners** (and optionally Sounds). Use **Test notification** in Config to verify.
+
+If you run from a dev checkout via `start.command`, the helper is built the same way inside `Blink Tracker.app/Contents/Resources/`.
 
 ## Config
 
@@ -75,7 +85,7 @@ Open **Config** in the app:
 
 - Python, Tkinter
 - OpenCV, NumPy, Pillow
-- macOS notifications and frontmost-app via AppleScript
+- macOS notifications via bundled `BlinkNotify.app` helper (default banner + eye icon)
 
 ## License
 
