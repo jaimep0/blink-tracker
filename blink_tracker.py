@@ -16,12 +16,10 @@ import cv2
 import numpy as np
 from PIL import Image, ImageTk
 
+import os as _os
 _HERE = Path(__file__).resolve().parent
-# Prefer Application Support when launched as .app; else folder next to script
-_ENV = Path((__import__("os").environ.get("BLINK_TRACKER_HOME") or "").strip())
-APP_DIR = _ENV if _ENV.is_dir() or __import__("os").environ.get("BLINK_TRACKER_HOME") else _HERE
-if __import__("os").environ.get("BLINK_TRACKER_HOME"):
-    APP_DIR = Path(__import__("os").environ["BLINK_TRACKER_HOME"]).expanduser()
+if _os.environ.get("BLINK_TRACKER_HOME"):
+    APP_DIR = Path(_os.environ["BLINK_TRACKER_HOME"]).expanduser()
     APP_DIR.mkdir(parents=True, exist_ok=True)
 else:
     APP_DIR = _HERE
