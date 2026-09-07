@@ -124,7 +124,12 @@ class Store:
 
 
 class BlinkDetector:
-    """Face + eye cascades; blink when both eyes look closed then open."""
+    """Face + eye cascades; blink when both eyes close then open again.
+    Eye movement / look-away often drops eye detection — that is ignored unless
+    the face stayed steady and the gap is short (a real blink)."""
+
+    # Looking around loses eyes longer than a blink; abort after this many frames
+    MAX_LOST_EYE_FRAMES = 7
 
     def __init__(self):
         cascade_dir = Path(cv2.data.haarcascades)
@@ -132,6 +137,20 @@ class BlinkDetector:
         self.eyes = cv2.CascadeClassifier(str(cascade_dir / "haarcascade_eye_tree_eyeglasses.xml"))
         self.closed_frames = 0
         self.was_closed = False
+        self.had_both_open = False
+        self.anchor_face = None  # (cx, cy, w, h) while both eyes open
+        self.lost_eye_frames = 0
+
+    def _face_steady(self, x, y, w, h) -> bool:
+        if self.anchor_face is None:
+            return False
+        cx, cy, aw, ah = self.anchor_face
+        ncx, ncy = x + w / 2.0, y + h / 2.0
+        dy = abs(ncy - cy) / max(ah, 1)
+        dx = abs(ncx - cx) / max(aw, 1)
+        ds = abs(h - ah) / max(ah, 1)
+        # Gaze / head turns move the box more than a blink
+        return dy < 0.06 and dx < 0.08 and ds < 0.10
 
     def process(self, frame_bgr):
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
@@ -139,16 +158,16 @@ class BlinkDetector:
         faces = self.face.detectMultiScale(gray, 1.1, 5, minSize=(120, 120))
         fidelity = 0.0
         closed = False
+        both_open = False
+        abort = False
         label = "No face"
 
         if len(faces) > 0:
-            # largest face
             x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
             cv2.rectangle(frame_bgr, (x, y), (x + w, y + h), (0, 180, 0), 2)
             roi_gray = gray[y : y + h, x : x + w]
             roi_color = frame_bgr[y : y + h, x : x + w]
             eyes = self.eyes.detectMultiScale(roi_gray, 1.1, 8, minSize=(25, 15))
-            # keep upper-half eyes only
             eyes = [e for e in eyes if e[1] + e[3] // 2 < h * 0.55]
             eyes = sorted(eyes, key=lambda e: e[0])[:2]
 
@@ -160,28 +179,63 @@ class BlinkDetector:
             if len(ratios) >= 2:
                 avg = float(np.mean(ratios))
                 closed = avg < CLOSED_RATIO
-                # fidelity: how clearly closed (lower ratio → higher)
                 fidelity = max(0.0, min(1.0, (CLOSED_RATIO - avg) / CLOSED_RATIO + 0.45))
-                label = f"eyes open  r={avg:.2f}" if not closed else f"eyes closed  r={avg:.2f}"
+                if closed:
+                    label = f"eyes closed  r={avg:.2f}"
+                    self.lost_eye_frames = 0
+                else:
+                    both_open = True
+                    self.had_both_open = True
+                    self.anchor_face = (x + w / 2.0, y + h / 2.0, float(w), float(h))
+                    self.lost_eye_frames = 0
+                    label = f"eyes open  r={avg:.2f}"
             elif len(ratios) == 1:
-                avg = float(ratios[0])
-                closed = avg < CLOSED_RATIO
-                fidelity = max(0.0, min(1.0, (CLOSED_RATIO - avg) / CLOSED_RATIO + 0.35))
-                label = f"1 eye  r={avg:.2f}"
+                # One eye: wink or gaze shift — never a blink
+                closed = False
+                abort = True
+                self.lost_eye_frames = 0
+                label = "1 eye (ignored)"
             else:
-                # no eyes found while face present often means blink mid-frame
-                closed = True
-                fidelity = 0.55
-                label = "face, no eyes (maybe blink)"
+                # No eyes: blink only if face barely moved and gap is short
+                self.lost_eye_frames += 1
+                if (
+                    self.had_both_open
+                    and self._face_steady(x, y, w, h)
+                    and self.lost_eye_frames <= self.MAX_LOST_EYE_FRAMES
+                ):
+                    closed = True
+                    fidelity = 0.55
+                    label = "eyes closed"
+                else:
+                    closed = False
+                    abort = True
+                    label = "eye move / look away"
+                    self.lost_eye_frames = 0
+        else:
+            abort = True
+            self.lost_eye_frames = 0
 
         blink = False
-        if closed:
+        if abort:
+            self.closed_frames = 0
+            self.was_closed = False
+        elif closed:
             self.closed_frames += 1
             if self.closed_frames >= CONSEC_CLOSED:
                 self.was_closed = True
-        else:
+            # Still lost-eyes too long while "closed" → treat as look-away
+            if self.lost_eye_frames > self.MAX_LOST_EYE_FRAMES:
+                self.closed_frames = 0
+                self.was_closed = False
+                abort = True
+                label = "eye move / look away"
+        elif both_open:
+            # Only finish a blink when both eyes are clearly open again
             if self.was_closed and self.closed_frames >= CONSEC_CLOSED:
                 blink = True
+            self.closed_frames = 0
+            self.was_closed = False
+        else:
             self.closed_frames = 0
             self.was_closed = False
 
