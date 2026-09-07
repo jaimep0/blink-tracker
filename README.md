@@ -23,6 +23,28 @@ So I put together this lightweight tracker quickly: OpenCV on the built-in camer
 - macOS with a webcam
 - Python 3.10+ (a venv is created automatically on first launch)
 
+
+## Install as a Mac app (Dock)
+
+A packaged app lives in this repo as `Blink Tracker.app` (eye icon).
+
+1. Copy `Blink Tracker.app` into `~/Applications` (or `/Applications`).
+2. Open it once from Finder.
+3. Right-click the Dock icon → **Options → Keep in Dock**.
+
+Or from Terminal after copying:
+
+```bash
+open ~/Applications/Blink\ Tracker.app
+```
+
+Camera permission should be granted for **Blink Tracker** (and/or Terminal/Python if you still launch via `start.command`).
+
+Data and config are stored in:
+
+`~/Library/Application Support/BlinkTracker/`
+
+
 ## Quick start
 
 1. Clone this repo (or download the folder).
